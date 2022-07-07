@@ -17,7 +17,7 @@ class PF:
     def __init__(self, ground_info):
         np.random.seed(0)
 
-        self.polygons, self.beacons = ground_info
+        self.floor,self.polygons, self.beacons = ground_info
 
         self._initialize_swarm() # init self.pos, self.vel, self.w
         self._beacon_buffer = dq()
@@ -138,7 +138,7 @@ class PF:
             self.vel = self.vel[:,resample_idx]
             self.w.fill(1/SWARM_SIZE)
     
-    def _polygon_filt(self): # filter out all points that's not in any polygon
+    def _polygon_filt(self): # filter out all points that's not in any polygon    
         # point p is inside a convex and simple polygon P with vertices (P1,P2,P3,...) iff pP1 × P1P2, pP2 × P2P3, ... have same signal
         P = self.polygons
         P01 = ((P[0,1]-P[0,0])*(self.pos[1].reshape(-1,1)-P[1,0]) - (P[1,1]-P[1,0])*(self.pos[0].reshape(-1,1)-P[0,0])) < 0

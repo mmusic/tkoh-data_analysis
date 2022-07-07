@@ -48,30 +48,53 @@ def get_gi(floor_id):
     beacon_loc[1] = np.radians(beacon_loc[1]-center[1]) * 6371000
     return polygons, polygon_id, beacon_loc, geo2meter, meter2geo
 # %%
-FLOOR='8F'
-polygons, polygon_id, beacon_loc, geo2meter, meter2geo = get_gi(FLOOR)
-
-with open(f'survey/0621/gt-{FLOOR}.txt', 'r') as gt_file:
-    gt = json.loads(gt_file.read())
-gt_cp = json.loads(gt['event_plan'][0]['geojson'])
-gt_ct = json.loads(gt['event_plan'][0]['ground_truth'])
+polygons_8F, polygon_id_8F, beacon_loc_8F, geo2meter_8F, meter2geo_8F = get_gi('8F')
+polygons_G, polygon_id_G, beacon_loc_G, geo2meter_G, meter2geo_G = get_gi('G')
+polygons_LG, polygon_id_LG, beacon_loc_LG, geo2meter_LG, meter2geo_LG = get_gi('LG')
+gt_cp = list()
+gt_ct = list()
+for floor in ('8F','G','LG'):
+    with open(f'survey/0621/gt-{floor}.txt', 'r') as gt_file:
+        gt = json.loads(gt_file.read())
+    gt_cp.extend(json.loads(gt['event_plan'][0]['geojson']))
+    gt_ct.extend(json.loads(gt['event_plan'][0]['ground_truth']))
+    gt_floor=None #unimplemented
 print(gt_cp)
 print(gt_ct)
 # %%
 print(len(gt_ct)) # change below 0 from 0 to len(gt_ct)
-gt_pos = gt_cp[0] # compare directly in lon-lat
-gt_interval = gt_ct[0]
+#gt_pos = gt_cp[0] # compare directly in lon-lat
+#gt_interval = gt_ct[0][0],gt_ct[-1][1]
 
-pf = PF((polygons, beacon_loc))
+def get_floor(beacon_batch):
+    a=beacon_loc_8F.index; b=beacon_loc_G.index;c=beacon_loc_LG.index
+    a1 =beacon_batch.bID.isin(a).sum()
+    b1=beacon_batch.bID.isin(b).sum()
+    c1=beacon_batch.bID.isin(c).sum()
+    m=max(a1,b1,c1)
+    if m==a1:return '8F',polygons_8F, polygon_id_8F, beacon_loc_8F, geo2meter_8F, meter2geo_8F
+    elif m==b1:return 'G',polygons_G, polygon_id_G, beacon_loc_G, geo2meter_G, meter2geo_G
+    else: return 'LG',polygons_LG, polygon_id_LG, beacon_loc_LG, geo2meter_LG, meter2geo_LG
+
+
 
 data_beacon = pd.read_csv('survey/0621/beacon.csv', usecols=[0,1,2])
 data_beacon.columns = ('bID', 'rssi', 'ts')
-data_beacon = data_beacon[(data_beacon.ts > gt_interval[0]) & (data_beacon.ts < gt_interval[1])]
+#data_beacon = data_beacon[(data_beacon.ts > gt_interval[0]) & (data_beacon.ts < gt_interval[1])]
 data_beacon['ts'] //= PERIOD
 
+initpf=True
 for t, beacon_batch in data_beacon.groupby('ts'):
+    floor,polygons, polygon_id,beacon_loc,geo2meter,meter2geo=get_floor(beacon_batch)#infer floor by some indicator, currently only number of packets
+
+    if initpf:pf=PF((floor,polygons,beacon_loc))
+    if floor!=pf.floor:
+        del pf;pf = PF((floor,polygons,beacon_loc))    
+    beacon_batch=beacon_batch[beacon_batch.bID.isin(beacon_loc.index)]
     pf.feed_data(t, beacon_batch[['bID','rssi']]) # add condition beacon_batch is not None and nonempty to run online
     if pf.tracked:
         x, y = meter2geo(pf.pos_estimate)
-        print(f'{int(t)} at ({x:.3f}, {y:.3f})±{pf.pos_var:.3f}m in polygon #{polygon_id[pf.polygon_idx]};') # polygon_idx==0 means the location must not in any polygon
+        print(f'{int(t)} at ({x:.3f}, {y:.3f})±{pf.pos_var:.3f}m in polygon #{polygon_id[pf.polygon_idx]} on floor {floor};') # polygon_idx==0 means the location must not in any polygon
 
+
+# %%
