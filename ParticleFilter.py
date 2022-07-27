@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 PERIOD = 1
-BEACON_WINDOW = 3 # seconds
+BEACON_WINDOW = 10 # seconds
 # MAX_BEACON_GAP = 3 # seconds, equal to BEACON_WINDOW for lack of MPU participation
 SWARM_SIZE = 500
 EFFECTIVE_SIZE = 300
@@ -102,7 +102,7 @@ class PF:
         b_locs = self.beacons.loc[beacon_batch.index].values.T
         rssi = beacon_batch.rssi.values
         dist = np.sqrt((b_locs[0] - self.pos[0].reshape(-1,1))**2 + (b_locs[1] - self.pos[1].reshape(-1,1))**2) # cross_distance(self.pos, b_locs)
-        self.w = np.exp((((rssi+75)*11 - (dist-5))/10 * np.clip((rssi+75)/30,0,1)).sum(axis=1))
+        self.w = np.exp((((rssi+85)*11 - (dist-5))/10 * np.clip((rssi+85)/40,0,1)).sum(axis=1))
         self._normalize_w('Beacon')
         self._polygon_filt()
 
