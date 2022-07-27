@@ -83,18 +83,19 @@ data_beacon['ts'] //= PERIOD
 
 initpf = True
 for t, beacon_batch in data_beacon.groupby('ts'):
-    floor,polygons, polygon_id,beacon_loc,geo2meter,meter2geo=get_floor(beacon_batch)#infer floor by some indicator, currently only number of packets
-
-    if initpf:pf = PF((floor,polygons,beacon_loc))
+    floor, polygons, polygon_id, beacon_loc, geo2meter, meter2geo = get_floor(beacon_batch) #infer floor by some indicator, currently only number of packets
+    if initpf: 
+        pf = PF((floor,polygons,beacon_loc))
+        initpf = False
     if floor != pf.floor:
-        del pf;pf = PF((floor,polygons,beacon_loc))    
+        del pf; pf = PF((floor,polygons,beacon_loc))    
     beacon_batch = beacon_batch[beacon_batch.bID.isin(beacon_loc.index)]
     pf.feed_data(t, beacon_batch[['bID','rssi']]) # add condition beacon_batch is not None and nonempty to run online
     if pf.tracked:
-        x, y = meter2geo(pf.pos_estimate)
+        #x, y = meter2geo(pf.pos_estimate)
+        x, y = meter2geo(pf.adsorb_polygon())
         if pf.polygon_idx:
             print(f'{int(t)} at ({x:.3f}, {y:.3f})±{pf.pos_var:.3f}m in polygon #{polygon_id[pf.polygon_idx]} on floor {floor};') # polygon_idx==0 means the location must not in any polygon
         else:
-            print(f'{int(t)} at ({x:.3f}, {y:.3f})±{pf.pos_var:.3f}m out of polygons on floor {floor};')
-
+            print(f'{int(t)} at ({x:.3f}, {y:.3f})±{pf.pos_var:.3f}m not in any polygon on floor {floor};')
 # %%

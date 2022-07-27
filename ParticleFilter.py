@@ -1,11 +1,13 @@
 from collections import deque as dq
-from itertools import takewhile
+#from itertools import takewhile
 from math import sqrt
 import numpy as np
 import pandas as pd
 
+from Visualization import Plotter
+
 PERIOD = 1
-BEACON_WINDOW = 10 # seconds
+BEACON_WINDOW = 15 # seconds
 # MAX_BEACON_GAP = 3 # seconds, equal to BEACON_WINDOW for lack of MPU participation
 SWARM_SIZE = 500
 EFFECTIVE_SIZE = 300
@@ -17,7 +19,7 @@ class PF:
     def __init__(self, ground_info):
         np.random.seed(0)
 
-        self.floor,self.polygons, self.beacons = ground_info
+        self.floor, self.polygons, self.beacons = ground_info
 
         self._initialize_swarm() # init self.pos, self.vel, self.w
         self._beacon_buffer = dq()
@@ -32,7 +34,8 @@ class PF:
         self.pos_var = None
 
         self.polygon_idx = 0
-
+        
+        self.plotter = Plotter((self.polygons, self.beacons))
 
     def _initialize_swarm(self):
         x = np.random.uniform(0,1,SWARM_SIZE); y = np.random.uniform(0,1,SWARM_SIZE)
@@ -48,12 +51,16 @@ class PF:
     # will refactor
     def feed_data(self, t:int, beacon_input:pd.DataFrame):
         if beacon_input.empty:
+            print('empty input')
             return
         # Predict prior 
         self.event_log = ''
         if self.tracked:
             self._blind_predict()
+            #print('predict')
         # Update posterior
+        #print(self._beacon_buffer)
+        #print(t, self._beacon_buffer_t)
         if self._beacon_buffer:
             last_t = self._beacon_buffer_t[-1]
             if t - last_t > BEACON_WINDOW:
@@ -67,14 +74,16 @@ class PF:
             for _ in range(len(self._beacon_buffer_t) - len(self._beacon_buffer)):
                 self._beacon_buffer_t.popleft()
         else:
-            self.tracked = True
             self._initialize_swarm()
+            self.event_log += 'Initialize; '
+        self.tracked = True
         self._beacon_buffer.append(beacon_input)
         self._beacon_buffer_t.append(t)
         beacon_batch = pd.concat(self._beacon_buffer, ignore_index=True).groupby('bID').max()
         self._update(beacon_batch)
         self._estimate()
         self._idx_polygon()
+        self.plotter.draw_posterior(self, beacon_batch, t) # delete when not used
         self._resample()        
         # can delete
         if self.event_log:
@@ -166,3 +175,19 @@ class PF:
         self.pos_var = None
         # clear buffer?
 
+    def adsorb_polygon(self):
+        e = self.pos_estimate
+        if not self.polygon_idx:
+            return e
+        polygon = self.polygons[:, :, self.polygon_idx]
+        c = polygon.mean(axis=1)
+        for i in range(4):
+            p = polygon[:, i]
+            s = polygon[:, i-3] - p
+            ep = cross2d(e-p, s)
+            cp = cross2d(c-p, s)
+            if ep * cp < 0: # not in polygon
+                r = cross2d(e-p, c-p) / (ep - cp)
+                if 0 <= r <= 1: # line segments (s and (e, c)) intersect
+                    return p + r*s
+        return e
