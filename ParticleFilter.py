@@ -116,7 +116,7 @@ class PF:
         self._polygon_filt()
 
     def _blind_predict(self):
-        self.vel = np.random.multivariate_normal((0.8,0),((1.5,0),(0,1.5)), SWARM_SIZE).T
+        self.vel = np.random.multivariate_normal((0,0),((1.5,0),(0,1.5)), SWARM_SIZE).T
         self.pos += self.vel * PERIOD
         self._polygon_filt() # necessary?
     
